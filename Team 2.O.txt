@@ -1,0 +1,241 @@
+A. Task 1: Obstacle avoidance and space exploration by the robot.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include "ch.h"
+#include "hal.h"
+#include "memory_protection.h"
+#include <main.h>
+
+
+#include "leds.h"
+#include "spi_comm.h"
+#include "sensors/proximity.h"
+#include "motors.h"
+#include "sensors/VL53L0X/VL53L0X.h"
+
+
+messagebus_t bus;
+MUTEX_DECL(bus_lock);
+CONDVAR_DECL(bus_condvar);
+
+//declare function
+//int max(int num1, int num2, int num3, int num4, int num5, int num6, int num7, int num8);
+
+int main(void)
+{
+
+    halInit();
+    chSysInit();
+    mpu_init();
+	 /** Inits the Inter Process Communication bus. */
+	messagebus_init(&bus, &bus_lock, &bus_condvar);
+	clear_leds();
+	set_body_led(0);
+	set_front_led(0);
+    motors_init(); //motor initialization
+    proximity_start(); //Start the proximity measurement module
+    calibrate_ir();	//Calibrate the proximity sensors
+    VL53L0X_start(); //
+
+
+//    left_motor_set_speed(0); //left motor speed  
+//    right_motor_set_speed(0);  //left motor speed  
+
+
+
+  //  int get_prox(unsigned int sensor_number); // sensor_number 0-7 
+
+    int threshold = 300;   //set threshold for proximity(distance)
+    int count = 0;
+    /* Infinite loop. */
+    while (1)
+    {
+    	//waits 1 second
+        //chThdSleepMilliseconds(1000);
+
+
+    	 int proximity_reading[8] = { 0,1,2,3,4,5,6,7 };
+    	        for (int i = 0; i < 8; i++)
+    	        {
+    	            proximity_reading[i] = get_calibrated_prox(i);
+    	        }
+    	          //without distance sensor
+
+    	        if (proximity_reading[0] > threshold || proximity_reading[1] > threshold || proximity_reading[2] > 500 )
+    	        {
+    	            // chThdSleepMilliseconds(1000);
+    	            left_motor_set_speed(-800);
+    	            right_motor_set_speed(800); // if sensor 0 or 1 or 2 detects obstacle, robot turns left.
+    	            set_led(LED7, 1);
+    	            set_led(LED1, 0);
+    	            set_led(LED3, 0);
+    	            set_led(LED5, 0);
+    	        }
+
+    	          // turning while dis_sensor and pro_sensor approaching at the same time
+
+    	        else if (proximity_reading[7] > threshold || proximity_reading[6] > threshold || proximity_reading[5] > 500)
+    	        {
+    	            left_motor_set_speed(800);
+    	            right_motor_set_speed(-800);//if sensor 7 or 6 or 5 detects obstacle, robot turns right.
+
+    	            set_led(LED3, 1);
+    	            set_led(LED1, 0);
+    	            set_led(LED5, 0);
+    	            set_led(LED7, 0);
+    	        }
+
+    	        else
+    	        {
+
+    	            left_motor_set_speed(800);
+    	            right_motor_set_speed(800);//sensor 0, 1, 2, 3, 4, 7, 6, 5 don't detect the obstacle, robot goes straight.
+    				set_led(LED1, 1);
+    				set_led(LED3, 0);
+    				set_led(LED5, 0);
+    				set_led(LED7, 0);
+    	          }
+
+    	   if ( proximity_reading[0] > threshold && proximity_reading[1] > threshold && proximity_reading[2] > threshold && proximity_reading[7] > threshold && proximity_reading[6] > threshold && proximity_reading[5] > threshold)
+    	        {
+    	            left_motor_set_speed(800);
+    	            right_motor_set_speed(-800);//If entering a dead end,  proximity sensor 0,1,2,5,6, and 7 detect an obstacle at the same time, the robot turns around and goes to starting point.
+    	            chThdSleepMilliseconds(1000);//wait 1s;
+    	            set_led(LED5, 1);
+    	            set_led(LED1, 0);
+    	            set_led(LED3, 0);
+    	            set_led(LED7, 0);
+    	        }
+
+
+    	       }
+    
+    	
+#define STACK_CHK_GUARD 0xe2dee396
+uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
+
+void __stack_chk_fail(void)
+{
+    chSysHalt("Stack smashing detected");
+}
+
+
+************************         END OF TASK 1          ******************************
+
+B. Task 2: Trailing an Object.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include "ch.h"
+#include "hal.h"
+#include "memory_protection.h"
+#include <main.h>
+
+
+#include "leds.h"
+#include "spi_comm.h"
+#include "sensors/proximity.h"
+#include "motors.h"
+#include "sensors/VL53L0X/VL53L0X.h"
+
+
+messagebus_t bus;
+MUTEX_DECL(bus_lock);
+CONDVAR_DECL(bus_condvar);
+
+int main(void)
+{
+
+    halInit();
+    chSysInit();
+    mpu_init();
+	 /* Inits the Inter Process Communication bus. */
+	messagebus_init(&bus, &bus_lock, &bus_condvar);
+	clear_leds();
+	set_body_led(0);
+	set_front_led(0);
+    motors_init(); //motors initialization  
+    proximity_start(); //Start the proximity measurement module
+    calibrate_ir();	//Calibrate the proximity sensors
+    VL53L0X_start(); //Initialize distance sensors
+
+    /* Infinite loop. */
+
+    //waits 1 second
+    //chThdSleepMilliseconds(1000);
+
+    int proximity_reading[8] = {0,1,2,3,4,5,6,7};
+    for(int i = 0; i < 8; i++)
+    {
+        proximity_reading[i] = get_calibrated_prox(i);
+    }
+
+
+    int threshold_2 = 60;  //set threshold for proximity(distance)
+
+    if(proximity_reading[0] < 50)
+    {
+        left_motor_set_speed(600);	// go straight
+        right_motor_set_speed(600);
+        set_led(LED1, 1);
+        set_led(LED3, 0);
+        set_led(LED5, 0);
+        set_led(LED7, 0);
+        if(proximity_reading[0] < 50  && proximity_reading[0] > 10)
+        {
+            left_motor_set_speed(0);	// stop if value > 50
+            right_motor_set_speed(0);
+        }
+    }
+    if(proximity_reading[0] > 50)
+    {
+        left_motor_set_speed(-600);	// move back
+        right_motor_set_speed(-600);
+        set_led(LED1, 0);
+        set_led(LED3, 0);
+        set_led(LED5, 1);
+        set_led(LED7, 0);
+
+        if(proximity_reading[0] < 50  && proximity_reading[0] > 10)
+        {
+            left_motor_set_speed(0);	// stop
+            right_motor_set_speed(0);
+        }
+    }
+    if(proximity_reading[1] > threshold_2 || proximity_reading[2] > threshold_2 || proximity_reading[3] > threshold_2)
+    {
+        left_motor_set_speed(800);	// turn right
+        right_motor_set_speed(-800);
+        set_led(LED1, 0);
+        set_led(LED3, 1);
+        set_led(LED5, 0);
+        set_led(LED7, 0);
+    }
+
+    if(proximity_reading[4] > threshold_2 || proximity_reading[5] > threshold_2 || proximity_reading[6] > threshold_2)
+    {
+        left_motor_set_speed(-800);	// turn left
+        right_motor_set_speed(800);
+        set_led(LED1, 0);
+        set_led(LED3, 0);
+        set_led(LED5, 0);
+        set_led(LED7, 1);
+    }
+}
+
+#define STACK_CHK_GUARD 0xe2dee396
+uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
+
+void __stack_chk_fail(void)
+{
+    chSysHalt("Stack smashing detected");
+}
+
+**************************   END OF TASK 2   *********************************
